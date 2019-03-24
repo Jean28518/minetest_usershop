@@ -1,1 +1,3 @@
-minetest_usershop
+# Minetest Mod: Usershop
+
+# This Mod is WIP!
