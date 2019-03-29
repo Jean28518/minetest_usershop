@@ -1,21 +1,33 @@
 ----------------------------------------------------------------------------
 -- usershop with licenses and currency with atm support
 ----------------------------------------------------------------------------
+
+-- REGISTER CRAFT:
+minetest.register_craft({
+	output = "usershop:usershop_atm",
+	recipe = {
+		{"default:bronze_ingot", "default:bronze_ingot", "default:bronze_ingot"},
+		{"default:bronze_ingot", "default:chest_locked", "default:bronze_ingot"},
+		{"default:bronze_ingot", "default:mese_crystal", "default:bronze_ingot"}
+	}
+})
+
+
+-- REGISTER NODE
 default.usershop_current_atm_shop_position = {}
 minetest.register_node("usershop:usershop_atm", {
 
     description = "Usershop with atm account integrated",
-		tiles = {"shop_licenses_top.png",
-				"shop_licenses_top.png",
-				"shop_licenses.png",
-				"shop_licenses.png",
-				"shop_licenses.png",
-				"shop_licenses.png",},
-    is_ground_content = true,
-		-- light_source = 10,
-    groups = {dig_immediate=2}, --TODO Breakable by pickaxe ?
-    sounds = default.node_sound_stone_defaults(),
--- Registriere den Owner beim Platzieren:
+		tiles = {"usershop_top.png",
+				"usershop_top.png",
+				"usershop_side.png",
+				"usershop_side.png",
+				"usershop_side.png",
+				"usershop_side.png",},
+    is_ground_content = false,
+  	groups = {cracky = 1, level = 2},
+  	sounds = default.node_sound_metal_defaults(),
+  -- Registriere den Owner beim Platzieren:
     after_place_node = function(pos, placer, itemstack)
       local meta = minetest.get_meta(pos)
 			meta:set_string("usershop:bs", "Buy")
@@ -23,8 +35,8 @@ minetest.register_node("usershop:usershop_atm", {
       meta:set_string("owner", placer:get_player_name())
 			meta:set_int("usershop:counter", 0)
       local inv = meta:get_inventory()
-      inv:set_size("einnahme", 1*1)
-      inv:set_size("ausgabe", 1*1) --TODO Brauchen wir eine Ausgabe?
+      inv:set_size("itemfield", 1*1)
+      -- inv:set_size("ausgabe", 1*1) --TODO Brauchen wir eine Ausgabe?
       inv:set_size("main", 4*8)
     end,
     on_rightclick = function(pos, node, player, itemstack, pointed_thing)
@@ -45,9 +57,10 @@ minetest.register_node("usershop:usershop_atm", {
     end,
     can_dig = function(pos, player)
       local meta = minetest.get_meta(pos)
-      if player:get_player_name() == meta:get_string("owner") then
+      if player:get_player_name() == meta:get_string("owner") or minetest.check_player_privs(player:get_player_name(), {protection_bypass}) then
         return true
       else
+        minetest.chat_send_player(player:get_player_name(), "You arent the owner of the shop!")
         return false
     end
   end
@@ -67,7 +80,7 @@ usershop_show_spec_atm = function (player)
      "label[0,0;Welcome back, ".. meta:get_string("owner").."]" ..
 		 "label[2.5,0.7;Counter: "..meta:get_int("usershop:counter").."]" ..
      "label[0.6,0.6;Item:]" ..
-     "list["..listname..";einnahme;0.5,1.1;2,2;]"..
+     "list["..listname..";itemfield;0.5,1.1;2,2;]"..
 		 "field[5.4,0.8;2.7,1;price_field;Price:;"..meta:get_string("usershop:price").."]" ..
 		 "button[5.1,1.3;2.7,1;set_price;Set Price]" ..
      "list["..listname..";main;0,2.5;8,4;]"..
@@ -77,10 +90,10 @@ usershop_show_spec_atm = function (player)
     else
       minetest.show_formspec(player:get_player_name(), "usershop:usershop_atm", "size[8,7.5]"..
       "label[0,0;Welcome, "..player:get_player_name().."]" ..
-      "label[0,0.5;Items:]" ..
-      "list["..listname..";einnahme;0,1;2,2;]"..
-		  "label[5.7,1.45;Price: "..meta:get_string("usershop:price").."]" ..
-			"label[5.7,1.8;Your Balance: "..atm.balance[player:get_player_name()].."]" ..
+      "label[0,0.5;Item:]" ..
+      "list["..listname..";itemfield;0,1;2,2;]"..
+		  "label[5.2,1.45;Price: "..meta:get_string("usershop:price").."]" ..
+			"label[5.2,1.8;Your Balance: "..atm.balance[player:get_player_name()].."]" ..
       "list[current_player;main;0,3.5;8,4;]" ..
       "button[3,1.5;2,1;buy_sell;"..meta:get_string("usershop:bs").."]"
     )
@@ -94,89 +107,69 @@ minetest.register_on_player_receive_fields(function(customer, formname, fields)
     local meta = minetest.get_meta(pos)
     local minv = meta:get_inventory()
     local pinv = customer:get_inventory()
-    local items = minv:get_list("einnahme")
+    local items = minv:get_list("itemfield")
     local owner = meta:get_string("owner")
     if items == nil then return end -- do not crash the server
 
-	-- Check if We Can Exchange:
-	local enough_space = true
-	local enough_items = true
-		-- BUY:
-		if meta:get_string("usershop:bs") == "Buy" then
-  		if not pinv:room_for_item("main", items)  then
-  		enough_space = false
-  		end
+	-- Check if We Can Exchange: -------------------------------------
+  -- INVENTORY
+  for i, item in pairs(items) do
+    if not pinv:room_for_item("main", item)  then
+      minetest.chat_send_player(customer:get_player_name(),"You dont have enough room in your inventory!" )
+    end
+    -- Customer: Enough Items?
+    if meta:get_string("usershop:bs") == "Sell" and not pinv:contains_item("main", item)  then
+      minetest.chat_send_player(customer:get_player_name(),"You dont have enough items to sell!" )
+      return
+    end
+    -- Does the Shop has enough space?
+    if meta:get_string("usershop:bs") == "Sell" and not minv:room_for_item("main", item)  then
+      minetest.chat_send_player(customer:get_player_name(),"The shop is full! Please contact the owner for that." )
+      return
+    end
+  -- Does the Shop has the required Item?
+    if  meta:get_string("usershop:bs") == "Buy" and not minv:contains_item("main", item)  then
+      minetest.chat_send_player(customer:get_player_name(),"The shop is empty! Please contact the owner for that." )
+      return
+    end
+  end
 
+  -- MONEY:
+	-- Customer: Enough Money???
+	if meta:get_string("usershop:bs") == "Buy" and atm.balance[customer:get_player_name()] < meta:get_int("usershop:price") then
+		minetest.chat_send_player(customer:get_player_name(),"You dont have enough money on your account!" )
+		return
+	end
 
-
-		-- SELL:
-		else
-		  if not pinv:contains_item("main",items) then
-				enough_items = false
-			end
-		end
-
-  -- Customer: Enough Items?
-  if not pinv:contains_item("main", items)  then
-    minetest.chat_send_player(customer:get_player_name(),"You dont have enough money on your account!" )
-    
+  -- Owner: Enough Money???
+  if meta:get_string("usershop:bs") == "Sell" and atm.balance[meta:get_string("owner")] < meta:get_int("usershop:price") then
+    minetest.chat_send_player(customer:get_player_name(),"The Owner hansn't enough money to pay you out! Contact the owner for that." )
+    return
   end
 
 
-	-- Customer: Enough Money???
-		if meta:get_string("usershop:bs") == "Buy" and atm.balance[customer:get_player_name()] < meta:get_int("usershop:price") then
-			minetest.chat_send_player(customer:get_player_name(),"You dont have enough money on your account!" )
-			return
-		end
-
-  -- Owner: Enough Money???
-    if meta:get_string("usershop:bs") == "Sell" and atm.balance[meta:get_string("owner")] < meta:get_int("usershop:price") then
-      minetest.chat_send_player(customer:get_player_name(),"The Owner hansn't enough money to pay you out! Contact the owner for that." )
-      return
-    end
-
-  -- Does the Shop has enough space?
-    if meta:get_string("usershop:bs") == "Sell" and not minv:room_for_item("main", items)  then
-      minetest.chat_send_player(customer:get_player_name(),"The shop is full! Contact the owner for that." )
-      return
-    end
-
-  -- Does the Shop has the required Item?
-    if  meta:get_string("usershop:bs") == "Buy" and not minv:contains_item("main", items)  then
-      minetest.chat_send_player(customer:get_player_name(),"The shop is full! Contact the owner for that." )
-      return
-    end
-
-
-
-	-- Do the thing:
+	-- Buy / Sell Process: --------------------------------------------------------------
 		-- BUY:
 		if meta:get_string("usershop:bs") == "Buy" then
-			if enough_space then
-				pinv:add_item("main",items)
-        minv:remove_item("main", items)
-				atm.balance[customer:get_player_name()] = atm.balance[customer:get_player_name()] - meta:get_int("usershop:price")
-        atm.balance[owner] = atm.balance[owner] + meta:get_int("usershop:price")
-				usershop_show_spec_atm(customer)
-				meta:set_int("usershop:counter", meta:get_int("usershop:counter") + 1)
-			elseif not enough_space then
-				minetest.chat_send_player(customer:get_player_name(),"You don't have enough space in your inventory!")
-			end
+      for i, item in pairs(items) do
+				pinv:add_item("main",item)
+        minv:remove_item("main", item)
+      end
+			atm.balance[customer:get_player_name()] = atm.balance[customer:get_player_name()] - meta:get_int("usershop:price")
+      atm.balance[owner] = atm.balance[owner] + meta:get_int("usershop:price")
+			usershop_show_spec_atm(customer)
+			meta:set_int("usershop:counter", meta:get_int("usershop:counter") + 1)
+
 		-- SELL:
 		else
-			if enough_items then
-        minv:add_item("main",items)
-        pinv:remove_item("main", items)
-				atm.balance[customer:get_player_name()] = atm.balance[customer:get_player_name()] + meta:get_int("usershop:price")
-        atm.balance[owner] = atm.balance[owner] - meta:get_int("usershop:price")
-				usershop_show_spec_atm(customer)
-				meta:set_int("usershop:counter", meta:get_int("usershop:counter") + 1)
-			elseif not allowed then
-				minetest.chat_send_player(customer:get_player_name(),"You are not allowed to buy this!" )
-			else
-				minetest.chat_send_player(customer:get_player_name(),"You don't have the required items in your inventory!" )
-			end
-
+      for i, item in pairs(items) do
+        minv:add_item("main",item)
+        pinv:remove_item("main", item)
+      end
+			atm.balance[customer:get_player_name()] = atm.balance[customer:get_player_name()] + meta:get_int("usershop:price")
+      atm.balance[owner] = atm.balance[owner] - meta:get_int("usershop:price")
+			usershop_show_spec_atm(customer)
+			meta:set_int("usershop:counter", meta:get_int("usershop:counter") + 1)
 		end
 		atm.saveaccounts()
 		-- --
