@@ -12,6 +12,9 @@ minetest.register_craft({
 	}
 })
 
+local jeans_economy = false
+if minetest.get_modpath("jeans_economy") then jeans_economy = true end
+
 
 -- REGISTER NODE
 default.usershop_current_atm_shop_position = {}
@@ -151,25 +154,39 @@ minetest.register_on_player_receive_fields(function(customer, formname, fields)
 	-- Buy / Sell Process: --------------------------------------------------------------
 		-- BUY:
 		if meta:get_string("usershop:bs") == "Buy" then
+			local item_name = "Nothing"
+			local item_count = 1
       for i, item in pairs(items) do
 				pinv:add_item("main",item)
         minv:remove_item("main", item)
+				item_name = item:get_name()
+				item_count = item:get_count()
       end
 			atm.balance[customer:get_player_name()] = atm.balance[customer:get_player_name()] - meta:get_int("usershop:price")
       atm.balance[owner] = atm.balance[owner] + meta:get_int("usershop:price")
 			usershop_show_spec_atm(customer)
 			meta:set_int("usershop:counter", meta:get_int("usershop:counter") + 1)
+			if jeans_economy then
+				jeans_economy_save(customer:get_player_name(), owner, meta:get_int("usershop:price"), customer:get_player_name().." buys "..item_count.." "..item_name.." at the usershop from "..owner..".")
+			end
 
 		-- SELL:
 		else
+			local item_name = "Nothing"
+			local item_count = 1
       for i, item in pairs(items) do
         minv:add_item("main",item)
         pinv:remove_item("main", item)
+				item_name = item:get_name()
+				item_count = item:get_count()
       end
 			atm.balance[customer:get_player_name()] = atm.balance[customer:get_player_name()] + meta:get_int("usershop:price")
       atm.balance[owner] = atm.balance[owner] - meta:get_int("usershop:price")
 			usershop_show_spec_atm(customer)
 			meta:set_int("usershop:counter", meta:get_int("usershop:counter") + 1)
+			if jeans_economy then
+				jeans_economy_save(owner, customer:get_player_name(), meta:get_int("usershop:price"), customer:get_player_name().." sells "..item_count.." "..item_name.." at the usershop from "..owner..".")
+			end
 		end
 		atm.saveaccounts()
 		-- --
