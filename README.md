@@ -7,6 +7,7 @@
 - The shop only works with the atm account
 - Of course only the Owner of the shop can change the offer
 - Only the Owner and players with the `protection_bypass` privilege are allowed to dig an usershop
+- If the shop is empty, a mail is automaticly sended to the owner. (Optional. [Mail Mod Needed](https://github.com/thomasrudin-mt/mail))
 
 ## Interface:
 ### Owner View:

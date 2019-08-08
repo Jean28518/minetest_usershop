@@ -13,7 +13,10 @@ minetest.register_craft({
 })
 
 local jeans_economy = false
-if minetest.get_modpath("jeans_economy") then jeans_economy = true end
+if minetest.get_modpath("jeans_economy") then jeans_economy = true minetest.chat_send_all("Economy true") end
+
+local mail_boolean = false
+if minetest.get_modpath("mail") then mail_boolean = true end
 
 
 -- REGISTER NODE
@@ -132,7 +135,11 @@ minetest.register_on_player_receive_fields(function(customer, formname, fields)
     end
   -- Does the Shop has the required Item?
     if  meta:get_string("usershop:bs") == "Buy" and not minv:contains_item("main", item)  then
-      minetest.chat_send_player(customer:get_player_name(),"The shop is empty! Please contact the owner for that." )
+      minetest.chat_send_player(customer:get_player_name(),"The shop is empty! The owner has automaticly been contacted." )
+			if mail_boolean then
+				minetest.chat_send_all("mail_boolean = true")
+				mail.send("Usershop", owner, "Usershop Empty! ("..minetest.pos_to_string(pos)..")", "Dear " .. owner .. ", your usershop at " .. minetest.pos_to_string(pos) .. " with " .. item:get_name() .. " is empty! \nPlease refill your shop soon!")
+			end
       return
     end
   end
